@@ -75,10 +75,8 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 		}
 	}
 
-	// Validate hooks after all config merging is complete so workspace
-	// hooks also get their matcher regexes compiled.
-	if err := cfg.ValidateHooks(); err != nil {
-		return nil, fmt.Errorf("invalid hook configuration: %w", err)
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 
 	if !isInsideWorktree() {
@@ -442,6 +440,10 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 	if c.LSP == nil {
 		c.LSP = make(map[string]LSPConfig)
 	}
+	c.MultiAgent.Mode = cmp.Or(c.MultiAgent.Mode, MultiAgentModeStandard)
+	c.MultiAgent.MaxDepth = cmp.Or(c.MultiAgent.MaxDepth, 1)
+	c.MultiAgent.MaxConcurrentAgents = cmp.Or(c.MultiAgent.MaxConcurrentAgents, 4)
+	c.MultiAgent.RecentForkTurns = cmp.Or(c.MultiAgent.RecentForkTurns, 4)
 
 	// Apply defaults to LSP configurations
 	c.applyLSPDefaults()
@@ -1080,6 +1082,36 @@ func ProjectSkillsDir(workingDir string) []string {
 }
 
 func isAppleTerminal() bool { return os.Getenv("TERM_PROGRAM") == "Apple_Terminal" }
+
+// Validate checks configuration that must be valid after defaults and all
+// config layers have been merged.
+func (c *Config) Validate() error {
+	if err := c.ValidateMultiAgent(); err != nil {
+		return fmt.Errorf("invalid multi-agent configuration: %w", err)
+	}
+	if err := c.ValidateHooks(); err != nil {
+		return fmt.Errorf("invalid hook configuration: %w", err)
+	}
+	return nil
+}
+
+func (c *Config) ValidateMultiAgent() error {
+	switch c.MultiAgent.Mode {
+	case MultiAgentModeStandard, MultiAgentModeCoordinator:
+	default:
+		return fmt.Errorf("mode must be %q or %q", MultiAgentModeStandard, MultiAgentModeCoordinator)
+	}
+	if c.MultiAgent.MaxDepth < 1 {
+		return fmt.Errorf("max_depth must be at least 1")
+	}
+	if c.MultiAgent.MaxConcurrentAgents < 1 {
+		return fmt.Errorf("max_concurrent_agents must be at least 1")
+	}
+	if c.MultiAgent.RecentForkTurns < 1 {
+		return fmt.Errorf("recent_fork_turns must be at least 1")
+	}
+	return nil
+}
 
 // normalizeHookEvent maps user-provided event names to their canonical
 // form. Matching is case-insensitive and accepts snake_case variants

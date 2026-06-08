@@ -56,6 +56,43 @@ const (
 	SelectedModelTypeSmall SelectedModelType = "small"
 )
 
+type MultiAgentMode string
+
+const (
+	MultiAgentModeStandard    MultiAgentMode = "standard"
+	MultiAgentModeCoordinator MultiAgentMode = "coordinator"
+)
+
+type MultiAgentConfig struct {
+	Enabled             bool           `json:"enabled,omitempty"`
+	Mode                MultiAgentMode `json:"mode,omitempty"`
+	MaxDepth            int            `json:"max_depth,omitempty"`
+	MaxConcurrentAgents int            `json:"max_concurrent_agents,omitempty"`
+	RecentForkTurns     int            `json:"recent_fork_turns,omitempty"`
+}
+
+type AgentMode string
+
+const (
+	AgentModePrimary  AgentMode = "primary"
+	AgentModeSubagent AgentMode = "subagent"
+	AgentModeAll      AgentMode = "all"
+)
+
+type AgentDefinitionConfig struct {
+	Description     string              `json:"description,omitempty"`
+	Mode            AgentMode           `json:"mode,omitempty"`
+	Model           SelectedModelType   `json:"model,omitempty"`
+	Prompt          string              `json:"prompt,omitempty"`
+	AllowedTools    []string            `json:"allowed_tools,omitempty"`
+	DisallowedTools []string            `json:"disallowed_tools,omitempty"`
+	AllowedMCP      map[string][]string `json:"allowed_mcp,omitempty"`
+	Skills          []string            `json:"skills,omitempty"`
+	AllowDelegation bool                `json:"allow_delegation,omitempty"`
+	Background      bool                `json:"background,omitempty"`
+	MaxTurns        int                 `json:"max_turns,omitempty"`
+}
+
 const (
 	AgentCoder string = "coder"
 	AgentTask  string = "task"
@@ -586,6 +623,9 @@ type Config struct {
 	Tools Tools `json:"tools,omitzero" jsonschema:"description=Tool configurations"`
 
 	Hooks map[string][]HookConfig `json:"hooks,omitempty" jsonschema:"description=User-defined shell commands that fire on hook events (e.g. PreToolUse)"`
+
+	MultiAgent       MultiAgentConfig                 `json:"multi_agent,omitzero"`
+	AgentDefinitions map[string]AgentDefinitionConfig `json:"agents,omitempty"`
 
 	Agents map[string]Agent `json:"-"`
 }

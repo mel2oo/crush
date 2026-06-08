@@ -37,6 +37,81 @@ func TestConfig_LoadFromBytes(t *testing.T) {
 	require.Equal(t, "https://api.openai.com/v2", pc.BaseURL)
 }
 
+func TestConfigMultiAgentDefaults(t *testing.T) {
+	cfg := &Config{}
+
+	cfg.setDefaults(t.TempDir(), "")
+
+	require.False(t, cfg.MultiAgent.Enabled)
+	require.Equal(t, MultiAgentModeStandard, cfg.MultiAgent.Mode)
+	require.Equal(t, 1, cfg.MultiAgent.MaxDepth)
+	require.Equal(t, 4, cfg.MultiAgent.MaxConcurrentAgents)
+	require.Equal(t, 4, cfg.MultiAgent.RecentForkTurns)
+}
+
+func TestConfigMultiAgentJSON(t *testing.T) {
+	cfg, err := loadFromBytes([][]byte{[]byte(`{
+		"multi_agent": {
+			"enabled": true,
+			"mode": "coordinator",
+			"max_depth": 2
+		},
+		"agents": {
+			"researcher": {
+				"description": "Researches the codebase.",
+				"mode": "subagent",
+				"model": "small",
+				"prompt": "Investigate before reporting.",
+				"allowed_tools": ["grep", "view"]
+			}
+		}
+	}`)})
+	require.NoError(t, err)
+
+	cfg.setDefaults(t.TempDir(), "")
+
+	require.True(t, cfg.MultiAgent.Enabled)
+	require.Equal(t, MultiAgentModeCoordinator, cfg.MultiAgent.Mode)
+	require.Equal(t, 2, cfg.MultiAgent.MaxDepth)
+	require.Equal(t, 4, cfg.MultiAgent.MaxConcurrentAgents)
+	require.Equal(t, 4, cfg.MultiAgent.RecentForkTurns)
+	require.Equal(t, AgentDefinitionConfig{
+		Description:  "Researches the codebase.",
+		Mode:         AgentModeSubagent,
+		Model:        SelectedModelTypeSmall,
+		Prompt:       "Investigate before reporting.",
+		AllowedTools: []string{"grep", "view"},
+	}, cfg.AgentDefinitions["researcher"])
+	require.Nil(t, cfg.Agents)
+}
+
+func TestLoadRejectsInvalidMultiAgentConfig(t *testing.T) {
+	tests := map[string]string{
+		"mode":                  `{"multi_agent":{"mode":"invalid"}}`,
+		"max depth":             `{"multi_agent":{"max_depth":-1}}`,
+		"max concurrent agents": `{"multi_agent":{"max_concurrent_agents":-1}}`,
+		"recent fork turns":     `{"multi_agent":{"recent_fork_turns":-1}}`,
+	}
+
+	for name, data := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("CRUSH_GLOBAL_CONFIG", dir)
+			t.Setenv("CRUSH_GLOBAL_DATA", dir)
+			require.NoError(t, os.WriteFile(
+				filepath.Join(dir, "crush.json"),
+				[]byte(data),
+				0o644,
+			))
+
+			_, err := Load(dir, dir, false)
+
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "invalid multi-agent configuration")
+		})
+	}
+}
+
 func TestLookupConfigs_BoundedByProject(t *testing.T) {
 	// Force GlobalConfig and GlobalConfigData to point at locations we
 	// control so they can be present in the result without polluting

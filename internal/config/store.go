@@ -766,10 +766,8 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 		}
 	}
 
-	// Validate hooks after all config merging is complete so matcher
-	// regexes are recompiled on the reloaded config (mirrors Load).
-	if err := cfg.ValidateHooks(); err != nil {
-		return fmt.Errorf("invalid hook configuration on reload: %w", err)
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration on reload: %w", err)
 	}
 
 	// Preserve runtime overrides

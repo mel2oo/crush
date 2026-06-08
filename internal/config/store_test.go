@@ -385,6 +385,40 @@ func TestReloadFromDisk_UsesNewConfigValues(t *testing.T) {
 	require.Equal(t, "claude-3", store.config.Models[SelectedModelTypeLarge].Model)
 }
 
+func TestReloadFromDiskRejectsInvalidMultiAgentConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "crush.json")
+	t.Setenv("CRUSH_GLOBAL_CONFIG", dir)
+	t.Setenv("CRUSH_GLOBAL_DATA", dir)
+
+	require.NoError(t, os.WriteFile(configPath, []byte(`{
+		"multi_agent": {
+			"enabled": true,
+			"mode": "coordinator",
+			"max_depth": 2
+		}
+	}`), 0o600))
+
+	store, err := Load(dir, dir, false)
+	require.NoError(t, err)
+	oldConfig := store.Config()
+
+	require.NoError(t, os.WriteFile(configPath, []byte(`{
+		"multi_agent": {
+			"enabled": true,
+			"mode": "invalid"
+		}
+	}`), 0o600))
+
+	err = store.ReloadFromDisk(t.Context())
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid multi-agent configuration")
+	require.Same(t, oldConfig, store.Config())
+	require.Equal(t, MultiAgentModeCoordinator, store.Config().MultiAgent.Mode)
+	require.Equal(t, 2, store.Config().MultiAgent.MaxDepth)
+}
+
 // TestSetConfigField_AutoReloads verifies that SetConfigField automatically
 // reloads config into memory after writing, so subsequent reads see the new value.
 func TestSetConfigField_AutoReloads(t *testing.T) {

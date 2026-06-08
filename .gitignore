@@ -54,3 +54,6 @@ manpages/
 completions/crush.*sh
 .prettierignore
 .task
+.agents/skills/code-reader
+.agents/skills/project-analyzer
+docs/superpowers/
